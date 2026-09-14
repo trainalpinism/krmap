@@ -3,6 +3,7 @@ const markerListEl = document.getElementById("markerList");
 const markerCountEl = document.getElementById("markerCount");
 const markerCardTemplate = document.getElementById("markerCardTemplate");
 const statusBannerEl = document.getElementById("statusBanner");
+const NCP_CLIENT_ID = "4x9g8x81k5";
 
 const COLOR_MAP = {
   red: "#e53935",
@@ -228,15 +229,82 @@ function initMap() {
   }
 }
 
-if (window.location.protocol === "file:") {
-  showStatus(
-    "현재 file:// 로 열려 있습니다. 네이버 지도는 보통 허용 URL 기반 인증이 필요해 file:// 환경에서 차단될 수 있습니다."
-  );
+function validateNaverMapAuth() {
+  return new Promise((resolve) => {
+    const callbackName = `naverMapAuthCb_${Date.now()}_${Math.floor(Math.random() * 10000)}`;
+    const script = document.createElement("script");
+    const url =
+      "https://oapi.map.naver.com/v1/validatev3"
+      + `?ncpClientId=${encodeURIComponent(NCP_CLIENT_ID)}`
+      + `&uri=${encodeURIComponent(window.location.href)}`
+      + `&time=${Date.now()}`
+      + `&callback=${callbackName}`;
+
+    let finished = false;
+
+    function cleanup() {
+      if (script.parentNode) {
+        script.parentNode.removeChild(script);
+      }
+      delete window[callbackName];
+    }
+
+    function done(result) {
+      if (finished) {
+        return;
+      }
+      finished = true;
+      cleanup();
+      resolve(result);
+    }
+
+    window[callbackName] = (data) => {
+      if (data && data.result) {
+        done({ ok: true });
+        return;
+      }
+
+      const errorCode = data && data.error ? data.error.errorCode || "" : "";
+      const message = data && data.error ? data.error.message || data.error.errorMessage || "" : "";
+      const details = data && data.error ? data.error.details || "" : "";
+
+      done({ ok: false, errorCode, message, details });
+    };
+
+    script.onerror = () => {
+      done({ ok: false, errorCode: "NETWORK", message: "Validation script load failed", details: "" });
+    };
+
+    script.src = url;
+    document.head.appendChild(script);
+
+    setTimeout(() => {
+      done({ ok: false, errorCode: "TIMEOUT", message: "Validation timeout", details: "" });
+    }, 6000);
+  });
 }
 
-if (window.naver && window.naver.maps) {
-  initMap();
-} else {
+async function boot() {
+  if (window.location.protocol === "file:") {
+    showStatus(
+      "현재 file:// 로 열려 있습니다. 네이버 지도는 보통 허용 URL 기반 인증이 필요해 file:// 환경에서 차단될 수 있습니다."
+    );
+    return;
+  }
+
+  const auth = await validateNaverMapAuth();
+  if (!auth.ok) {
+    showStatus(
+      `인증 실패 [${auth.errorCode || "UNKNOWN"}] ${auth.message || ""} ${auth.details || ""}`.trim()
+    );
+    return;
+  }
+
+  if (window.naver && window.naver.maps) {
+    initMap();
+    return;
+  }
+
   showStatus("네이버 지도 스크립트를 불러오지 못했습니다. 사내망/방화벽 또는 Client ID 설정을 확인하세요.");
   window.addEventListener("load", () => {
     if (window.naver && window.naver.maps) {
@@ -244,3 +312,5 @@ if (window.naver && window.naver.maps) {
     }
   });
 }
+
+boot();
