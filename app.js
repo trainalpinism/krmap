@@ -3,7 +3,7 @@ const markerListEl = document.getElementById("markerList");
 const markerCountEl = document.getElementById("markerCount");
 const markerCardTemplate = document.getElementById("markerCardTemplate");
 const statusBannerEl = document.getElementById("statusBanner");
-const NCP_CLIENT_ID = "4x9g8x81k5";
+const NCP_CLIENT_ID = "qb0c5ahrwa";
 
 const COLOR_MAP = {
   red: "#e53935",
